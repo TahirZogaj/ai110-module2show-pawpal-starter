@@ -47,8 +47,19 @@ The review also pointed out that `generate_plan()` must clear the previous plan 
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+**Tradeoff: conflicts are warned about, not resolved.** `detect_conflicts()` checks for *overlapping durations*, not just exact time matches. For example, a 07:30 walk lasting 30 minutes conflicts with ear cleaning at 07:45. But the scheduler only *reports* these clashes; it doesn't move tasks to fix them. The plan itself is built greedily: tasks are sorted by priority and placed back-to-back from the start of the day, so the final schedule never overlaps, but tasks don't necessarily happen at their preferred times.
+
+I think this is reasonable for a pet owner's day. The most important thing is that high-priority care like meds and feeding gets done within the time available, and a short warning lets the owner decide how to handle a clash (for example, asking someone else to feed the cat). Resolving conflicts automatically would mean rearranging lower-priority tasks around fixed time slots. That's much more complex logic, and it could still make choices the owner wouldn't.
+
+A second, smaller tradeoff is performance. `detect_conflicts()` compares every pair of tasks with `itertools.combinations`, which is O(n²). Sorting by start time and stopping early would be faster, but a pet owner has maybe 5–20 tasks a day, so the simpler version is easier to read and fast enough.
+
+**Simplifying the algorithm with AI.** I asked my AI assistant how `detect_conflicts()` could be made more readable or faster. It gave three options:
+
+1. **Use `itertools.combinations(windows, 2)`** instead of a nested loop with `enumerate` and list slicing. **I accepted this.** It says exactly what the code does ("every pair"), removes the index bookkeeping, and saves a level of indentation.
+2. **Sort the windows by start time and `break` out of the inner loop** once a task starts after the current one ends. This is faster for large lists, but the early `break` is easy to get wrong and hard to follow. **I rejected it** because my task lists are small.
+3. **Collapse the whole check into a single list comprehension.** That's more "Pythonic" and shorter, but cramming the overlap test, the same-pet check and a multi-line f-string into one expression makes it much harder to read and debug. **I kept the explicit loop.**
+
+I verified the change by re-running all 12 tests and the `main.py` demo; the same two conflicts were reported as before.
 
 ---
 
