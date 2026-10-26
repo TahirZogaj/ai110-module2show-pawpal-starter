@@ -29,6 +29,8 @@ classDiagram
         +str priority
         +str category
         +str preferred_time
+        +str frequency
+        +str pet_name
         +bool completed
         +mark_complete() None
         +priority_score() int
@@ -36,9 +38,9 @@ classDiagram
 
     class Scheduler {
         +Owner owner
-        +list~Task~ scheduled
+        +list~tuple~ scheduled
         +list~Task~ skipped
-        +generate_plan() list~Task~
+        +generate_plan() list~tuple~
         +sort_tasks(tasks: list~Task~) list~Task~
         +fits_in_time(task: Task, minutes_left: int) bool
         +explain_plan() str

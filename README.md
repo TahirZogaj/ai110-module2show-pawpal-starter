@@ -42,16 +42,34 @@ pip install -r requirements.txt
 6. Connect your logic to the Streamlit UI in `app.py`.
 7. Refine UML so it matches what you actually built.
 
+## 🛠️ Implementation Summary
+
+All of the backend logic is in `pawpal_system.py`, organized as four classes (see `diagrams/uml.mmd`):
+
+- **`Task`** (dataclass): one care activity, with a title, duration, priority (`low`/`medium`/`high`), category, preferred time, frequency and completion status. `mark_complete()` sets the task as done, and `priority_score()` turns the priority into a number for sorting.
+- **`Pet`** (dataclass): a pet's details plus its own list of tasks. `add_task()` tags each task with the pet's name, so the schedule can say which pet each task is for.
+- **`Owner`** (dataclass): the owner's free minutes for the day, day start time, and pets. `get_all_tasks()` combines every pet's tasks into one list.
+- **`Scheduler`**: the planning logic. `generate_plan()` reads from `owner.get_all_tasks()`, so it plans across every pet. It drops completed tasks and sorts the rest by priority, then preferred time, then shortest duration. It then gives each task a start time, one after another from the owner's day start, until the available time runs out. Tasks that don't fit go to a `skipped` list. `explain_plan()` prints the plan and the reason for its order.
+
+`main.py` is a terminal demo with one owner and two pets, and `tests/test_pawpal.py` holds the pytest suite.
+
 ## 🖥️ Sample Output
 
-Paste a sample of your app's CLI or Streamlit output here so a reader can see what a generated plan looks like:
+Output from running `python main.py` (one owner, two pets, six tasks, 90 minutes available):
 
 ```
-# e.g.:
-# Daily plan for Biscuit (Golden Retriever):
-#   08:00 — Morning walk (30 min) [priority: high]
-#   09:00 — Feeding (10 min) [priority: high]
-#   ...
+==================================================
+Today's Schedule
+==================================================
+Daily plan for Jordan (80 of 90 minutes used):
+  07:30 - Morning walk for Mochi (30 min) [priority: high]
+  08:00 - Breakfast for Mochi (10 min) [priority: high]
+  08:10 - Give medication for Luna (5 min) [priority: high]
+  08:15 - Play session for Luna (20 min) [priority: medium]
+  08:35 - Litter box cleaning for Luna (15 min) [priority: medium]
+Tasks were ordered by priority, then preferred time, then shortest first.
+Skipped (not enough time left):
+  Brushing for Mochi (15 min) [priority: low]
 ```
 
 ## 🧪 Testing PawPal+
