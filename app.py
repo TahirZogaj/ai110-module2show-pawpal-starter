@@ -125,23 +125,94 @@ else:
             )
             st.success(f"Added {task_title} for {pet.name}.")
 
-all_tasks = owner.get_all_tasks()
-if all_tasks:
-    st.table(
-        [
-            {
-                "Pet": t.pet_name,
-                "Task": t.title,
-                "Minutes": t.duration_minutes,
-                "Priority": t.priority,
-                "Preferred time": t.preferred_time or "-",
-                "Repeats": t.frequency,
-                "Due": t.due_date.isoformat(),
-                "Done": "✅" if t.completed else "",
-            }
-            for t in all_tasks
-        ]
+scheduler = Scheduler(owner)
+
+
+def task_rows(tasks: list[Task]) -> list[dict]:
+    """Turn tasks into table rows for st.table."""
+    return [
+        {
+            "Time": t.preferred_time or "—",
+            "Pet": t.pet_name,
+            "Task": t.title,
+            "Minutes": t.duration_minutes,
+            "Priority": t.priority,
+            "Repeats": t.frequency,
+            "Due": t.due_date.isoformat(),
+            "Status": "✅ Done" if t.completed else "Pending",
+        }
+        for t in tasks
+    ]
+
+
+def show_conflicts(conflicts: list[str]) -> None:
+    """Show time conflicts as one warning with a suggestion the owner can act on."""
+    if not conflicts:
+        return
+    lines = "\n".join(f"- {c.removeprefix('Warning: ')}" for c in conflicts)
+    st.warning(
+        f"**⚠️ {len(conflicts)} time conflict(s) in your preferred times**\n\n{lines}\n\n"
+        "You can only do one thing at a time. Consider moving one of these tasks to a "
+        "different time, or ask someone to help. The schedule below still runs them one "
+        "after another, highest priority first."
     )
+
+
+if owner.get_all_tasks():
+    st.markdown("#### Task list")
+    col1, col2 = st.columns(2)
+    with col1:
+        pet_filter = st.selectbox("Show pet", ["All pets"] + [p.name for p in owner.pets])
+    with col2:
+        status_filter = st.radio(
+            "Show status", ["All", "Pending", "Completed"], horizontal=True
+        )
+
+    filtered = owner.filter_tasks(
+        pet_name=None if pet_filter == "All pets" else pet_filter,
+        completed={"All": None, "Pending": False, "Completed": True}[status_filter],
+    )
+    if filtered:
+        st.caption("Sorted by preferred time; tasks with no time are listed last.")
+        st.table(task_rows(scheduler.sort_by_time(filtered)))
+    else:
+        st.info("No tasks match these filters.")
+
+    show_conflicts(scheduler.detect_conflicts())
+
+    pending = scheduler.sort_by_time(owner.filter_tasks(completed=False))
+    if pending:
+        st.markdown("#### Mark a task complete")
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            # Select by index: st.selectbox returns a copy of object options, and we
+            # need the real Task stored on the pet.
+            choice = st.selectbox(
+                "Task",
+                range(len(pending)),
+                format_func=lambda i: (
+                    f"{pending[i].preferred_time or '--:--'}  {pending[i].title} for "
+                    f"{pending[i].pet_name} (due {pending[i].due_date.isoformat()})"
+                ),
+                label_visibility="collapsed",
+            )
+            to_complete = pending[choice]
+        with col2:
+            if st.button("Mark complete", use_container_width=True):
+                next_task = scheduler.mark_task_complete(to_complete)
+                if next_task:
+                    st.session_state.flash = (
+                        f"Completed {to_complete.title} for {to_complete.pet_name}. "
+                        f"It repeats {to_complete.frequency}, so the next one is due "
+                        f"{next_task.due_date.isoformat()}."
+                    )
+                else:
+                    st.session_state.flash = (
+                        f"Completed {to_complete.title} for {to_complete.pet_name}."
+                    )
+                st.rerun()
+    if "flash" in st.session_state:
+        st.success(st.session_state.pop("flash"))
 elif owner.pets:
     st.info("No tasks yet. Add one above.")
 
@@ -149,17 +220,21 @@ st.divider()
 
 st.subheader("Build Schedule")
 st.caption(
-    "Plans every pet's pending tasks by priority, then preferred time, "
+    "Plans every pet's tasks that are due today by priority, then preferred time, "
     "then shortest first, until the available time runs out."
 )
 
-if st.button("Generate schedule"):
-    scheduler = Scheduler(owner)
+if st.button("Generate schedule", type="primary"):
     plan = scheduler.generate_plan()
     if not plan and not scheduler.skipped:
-        st.info("No pending tasks to schedule.")
+        st.info("No tasks are due today. Nothing to schedule.")
     else:
+        used = sum(t.duration_minutes for _, t in plan)
         if plan:
+            st.success(
+                f"Scheduled {len(plan)} task(s) for {owner.name}, using {used} of "
+                f"{owner.available_minutes} available minutes."
+            )
             st.markdown("#### Today's Schedule")
             st.table(
                 [
@@ -169,16 +244,20 @@ if st.button("Generate schedule"):
                         "Task": t.title,
                         "Minutes": t.duration_minutes,
                         "Priority": t.priority,
+                        "Preferred": t.preferred_time or "—",
                     }
                     for start, t in plan
                 ]
             )
-        for warning in scheduler.conflicts:
-            st.warning(warning)
         if scheduler.skipped:
             st.warning(
-                "Skipped (not enough time left): "
-                + ", ".join(f"{t.title} for {t.pet_name}" for t in scheduler.skipped)
+                "**Skipped, not enough time left:** "
+                + ", ".join(
+                    f"{t.title} for {t.pet_name} ({t.duration_minutes} min, {t.priority})"
+                    for t in scheduler.skipped
+                )
+                + ". Add more available minutes to fit them in."
             )
+        show_conflicts(scheduler.conflicts)
         with st.expander("Why this plan?"):
             st.text(scheduler.explain_plan())

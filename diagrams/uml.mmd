@@ -1,7 +1,8 @@
 classDiagram
-    %% PawPal+ draft UML — keep this file updated so it matches the final implementation.
+    %% PawPal+ final UML — matches pawpal_system.py.
 
     class Owner {
+        <<dataclass>>
         +str name
         +int available_minutes
         +str day_start
@@ -10,10 +11,11 @@ classDiagram
         +add_pet(pet: Pet) None
         +remove_pet(name: str) None
         +get_all_tasks() list~Task~
-        +filter_tasks(pet_name: str, completed: bool) list~Task~
+        +filter_tasks(pet_name: str = None, completed: bool = None) list~Task~
     }
 
     class Pet {
+        <<dataclass>>
         +str name
         +str species
         +int age
@@ -25,6 +27,7 @@ classDiagram
     }
 
     class Task {
+        <<dataclass>>
         +str title
         +int duration_minutes
         +str priority
@@ -34,7 +37,7 @@ classDiagram
         +date due_date
         +str pet_name
         +bool completed
-        +mark_complete() Task
+        +mark_complete() Optional~Task~
         +is_due(on: date) bool
         +priority_score() int
     }
@@ -45,10 +48,10 @@ classDiagram
         +list~Task~ skipped
         +list~str~ conflicts
         +generate_plan() list~tuple~
-        +detect_conflicts(tasks: list~Task~) list~str~
-        +mark_task_complete(task: Task) Task
+        +mark_task_complete(task: Task) Optional~Task~
         +sort_tasks(tasks: list~Task~) list~Task~
         +sort_by_time(tasks: list~Task~) list~Task~
+        +detect_conflicts(tasks: list~Task~ = None) list~str~
         +fits_in_time(task: Task, minutes_left: int) bool
         +explain_plan() str
     }
@@ -56,3 +59,9 @@ classDiagram
     Owner "1" o-- "*" Pet : owns
     Pet "1" *-- "*" Task : needs
     Scheduler "1" --> "1" Owner : plans for
+    Scheduler ..> Task : sorts, schedules, checks conflicts
+    Scheduler ..> Pet : adds next occurrence to
+    Task ..> Task : mark_complete() creates next occurrence
+
+    note for Task "priority: low, medium, high (PRIORITY_SCORES 1-3)\nfrequency: once, daily (+1 day), weekly (+7 days)"
+    note for Scheduler "scheduled holds (start 'HH:MM', Task) pairs\nreads tasks only via Owner.get_all_tasks()\nplan is capped at midnight (MINUTES_PER_DAY)"
