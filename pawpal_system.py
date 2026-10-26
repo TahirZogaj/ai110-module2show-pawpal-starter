@@ -8,6 +8,7 @@ from itertools import combinations
 
 PRIORITY_SCORES = {"low": 1, "medium": 2, "high": 3}
 RECURRENCE_DAYS = {"daily": 1, "weekly": 7}  # any other frequency does not repeat
+MINUTES_PER_DAY = 24 * 60
 
 
 def _to_minutes(hhmm: str) -> int:
@@ -150,8 +151,9 @@ class Scheduler:
         today = date.today()
         pending = [t for t in self.owner.get_all_tasks() if t.is_due(today)]
         self.conflicts = self.detect_conflicts(pending)
-        minutes_left = self.owner.available_minutes
         clock = _to_minutes(self.owner.day_start)
+        # The plan can't run past midnight, so cap the budget at the minutes left in the day.
+        minutes_left = min(self.owner.available_minutes, MINUTES_PER_DAY - clock)
 
         for task in self.sort_tasks(pending):
             if self.fits_in_time(task, minutes_left):
@@ -182,7 +184,7 @@ class Scheduler:
             key=lambda t: (
                 -t.priority_score(),
                 t.preferred_time == "",
-                t.preferred_time,
+                _to_minutes(t.preferred_time) if t.preferred_time else 0,
                 t.duration_minutes,
             ),
         )

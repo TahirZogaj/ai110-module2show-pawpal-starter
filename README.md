@@ -142,19 +142,37 @@ Time conflicts in preferred times:
 
 ## 🧪 Testing PawPal+
 
+Run the full test suite from the project root (with the virtual environment activated):
+
 ```bash
-# Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
+python -m pytest
 ```
 
-Sample test output:
+The 31 tests in `tests/test_pawpal.py` cover both normal use and edge cases:
+
+- **Sorting:** tasks come back in chronological order with no-time tasks last, unpadded times like `"8:00"` sort correctly, and the plan follows priority → preferred time → shortest duration.
+- **Recurring tasks:** completing a daily task creates a new one due the next day; weekly tasks come back in 7 days; one-time tasks don't repeat. Also checks overdue tasks, tasks completed early, Dec 31 → Jan 1 rollover, and that the new copy keeps the task's details but stays out of today's plan.
+- **Conflict detection:** flags tasks at the exact same time or with overlapping durations (same pet and across pets), produces one warning per clashing pair, ignores tasks that only touch, completed tasks and future tasks, and warns about invalid times instead of crashing.
+- **Scheduling:** start times run back-to-back from the owner's day start, the time budget is respected (exact fits are scheduled, zero minutes skips everything), the plan never runs past midnight, overdue tasks are still planned, re-running `generate_plan()` doesn't duplicate tasks, and empty owners or pets give an empty plan.
+- **Basics and filtering:** `mark_complete()`, adding tasks to a pet, filtering by pet and/or completion status, and a clear error for a misspelled priority.
+
+Successful test run:
 
 ```
-# Paste your pytest output here
+============================= test session starts ==============================
+platform darwin -- Python 3.13.15, pytest-9.1.1, pluggy-1.7.0
+rootdir: /Users/tahirzogaj/ai110-module2show-pawpal-starter
+plugins: anyio-4.15.1
+collected 31 items
+
+tests/test_pawpal.py ...............................                     [100%]
+
+============================== 31 passed in 0.01s ==============================
 ```
+
+**Confidence level: ⭐⭐⭐⭐☆ (4/5)**
+
+All 31 tests pass, including the edge cases most likely to break a scheduler: ties, boundaries, empty inputs, date rollovers and overlapping times. Writing them also caught two real bugs, which are now fixed: times were being compared as text, and plans could run past midnight. I'm not giving it 5 stars because a few things are still untested or unhandled. Completing a recurring task after its pet has been removed raises an unclear error. The Streamlit UI is only checked by hand. And the scheduler warns about conflicts rather than resolving them.
 
 ## 📐 Smarter Scheduling
 
